@@ -1,0 +1,11 @@
+# 純前端靜態站，無需建置步驟。
+[build]
+  publish = "."
+  command = ""
+
+# SPA 不適用；本站為多 .pg 切換的單一 index.html，直接服務根目錄即可。
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
