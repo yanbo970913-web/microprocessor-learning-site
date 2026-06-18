@@ -1869,14 +1869,28 @@ window._gasOnReady = (function() {
 // ============================================================
 function genAllQ(){
   const extra=[];
-  // Generator 1: 16-bit Hex<->Decimal (~10,000+)
-  for(let v=0;v<=65535;v+=6){
+  // Generator 1: 16-bit Hex -> Decimal
+  for(let v=0;v<=65535;v+=3){
     const h=v.toString(16).toUpperCase().padStart(4,'0');
     const wrong=[v+1,v+7,v+256,v-3].filter(x=>x>=0&&x<=65535&&x!==v);
     if(wrong.length<3) continue;
     const opts=[v,...wrong.slice(0,3)].map(x=>x+' ('+x.toString(16).toUpperCase().padStart(4,'0')+'H)');
-    shuffle(opts);
-    extra.push({t:'十六進位 '+h+'H 轉十進位等於？',o:opts,a:opts.findIndex(x=>x.startsWith(v+' ')),e:h+'H = '+v+'D (二進位: '+v.toString(2)+')',ch:2,uid:'2-2',tp:'tk'});
+    extra.push({t:'十六進位 '+h+'H 轉十進位等於？',o:opts,a:0,e:h+'H = '+v+'D (二進位: '+v.toString(2)+')',ch:2,uid:'2-2',tp:'tk'});
+  }
+  // Generator 1b: 16-bit Decimal -> Hex
+  for(let v=1;v<=65535;v+=3){
+    const h=v.toString(16).toUpperCase().padStart(4,'0');
+    extra.push({t:'十進位 '+v+' 轉十六進位等於？',o:[h+'H',((v+1)&0xFFFF).toString(16).toUpperCase().padStart(4,'0')+'H',((v+16)&0xFFFF).toString(16).toUpperCase().padStart(4,'0')+'H',((v+256)&0xFFFF).toString(16).toUpperCase().padStart(4,'0')+'H'],a:0,e:v+'D = '+h+'H（二進位 '+v.toString(2)+'）',ch:2,uid:'2-2',tp:'tk'});
+  }
+  // Generator 1c: 12-bit Decimal -> Binary
+  for(let v=0;v<=4095;v++){
+    const b=v.toString(2).padStart(12,'0');
+    extra.push({t:'十進位 '+v+' 轉 12 位元二進位等於？',o:[b,((v+1)&0xFFF).toString(2).padStart(12,'0'),((v+2)&0xFFF).toString(2).padStart(12,'0'),(v^0xFFF).toString(2).padStart(12,'0')],a:0,e:v+'D = '+b+'B = '+v.toString(16).toUpperCase()+'H',ch:2,uid:'2-1',tp:'tk'});
+  }
+  // Generator 1d: 12-bit Binary -> Decimal
+  for(let v=0;v<=4095;v++){
+    const b=v.toString(2).padStart(12,'0');
+    extra.push({t:'二進位 '+b+' 轉十進位等於？',o:[String(v),String((v+1)&0xFFF),String((v+8)&0xFFF),String((v^0x0F)&0xFFF)],a:0,e:b+'B = '+v+'D',ch:2,uid:'2-1',tp:'tk'});
   }
   // Generator 2: 8-bit binary conversions (~500)
   for(let v=0;v<=255;v+=3){
