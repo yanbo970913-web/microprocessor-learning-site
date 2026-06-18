@@ -1315,9 +1315,10 @@ table.it{width:100%;border-collapse:collapse;font-size:.83em;margin:10px 0;borde
   </div>
   <div class="g2">
     <div class="card">
-      <div class="ctitle">新增授權帳號</div>
+      <div class="ctitle">新增 / 設定使用者</div>
       <div class="ig"><label>電子郵件</label><input type="email" id="admin-add-email" placeholder="example@gmail.com" style="width:100%;"></div>
-      <button class="btn bsm" style="margin-top:10px;" onclick="adminAddEmail()">+ 新增</button>
+      <div class="ig"><label>角色</label><select id="admin-add-role" style="width:100%;"><option value="VIEWER">觀看者 (VIEWER)</option><option value="ADMIN">管理員 (ADMIN・限超級管理員)</option><option value="BLOCKED">封鎖 (BLOCKED)</option></select></div>
+      <button class="btn bsm" style="margin-top:10px;" onclick="adminAddEmail()">✓ 套用</button>
       <div id="admin-add-msg" style="margin-top:8px;font-size:.82em;min-height:20px;"></div>
     </div>
     <div class="card">
@@ -2547,9 +2548,9 @@ QS.push(...QS_EXTRA);
 // ============================================================
 // ADMIN PANEL (Google Apps Script integration)
 // ============================================================
-const ADMIN_EMAIL_CLIENT = '';
 let currentUserEmail = '';
 let currentIsAdmin = false;
+let currentIsSuper = false;
 
 function initUserInfo() {
   if (typeof google !== 'undefined' && google.script && google.script.run) {
@@ -2557,6 +2558,7 @@ function initUserInfo() {
       .withSuccessHandler(function(info) {
         currentUserEmail = info.email || '';
         currentIsAdmin = info.isAdmin || false;
+        currentIsSuper = info.isSuper || false;
         applyUserRole();
       })
       .withFailureHandler(function(err) {
@@ -2599,56 +2601,109 @@ function adminLoadList() {
   if (typeof google !== 'undefined' && google.script && google.script.run) {
     google.script.run
       .withSuccessHandler(function(res) {
-        renderAdminList(res);
+        renderUserList(res);
       })
       .withFailureHandler(function(err) {
         if (listEl) listEl.innerHTML = '<span style="color:var(--red);font-size:.83em;">載入失敗：' + err + '</span>';
       })
-      .getAllowedEmails();
+      .getUserList();
   } else {
-    renderAdminList({ ok: true, emails: ['demo@example.com', 'student@school.edu'] });
+    renderUserList({ ok: true, me:'local@dev.mode', meRole:'SUPER_ADMIN', users: [
+      { email:'super@admin.com', role:'SUPER_ADMIN', isSuper:true },
+      { email:'admin@example.com', role:'ADMIN' },
+      { email:'viewer@example.com', role:'VIEWER' },
+      { email:'blocked@example.com', role:'BLOCKED' }
+    ] });
   }
 }
 
-function renderAdminList(res) {
+const ROLE_META = {
+  SUPER_ADMIN:{t:'超級管理員',c:'#f7c547'}, ADMIN:{t:'管理員',c:'var(--gold2)'},
+  VIEWER:{t:'觀看者',c:'#7bb5d5'}, BLOCKED:{t:'已封鎖',c:'#ef9a9a'}
+};
+function renderUserList(res) {
   const listEl = document.getElementById('admin-list');
   if (!listEl) return;
-  if (!res.ok) { listEl.innerHTML = '<span style="color:var(--red);font-size:.83em;">' + res.msg + '</span>'; return; }
-  const emails = res.emails || [];
-  if (!emails.length) {
-    listEl.innerHTML = '<p style="color:var(--txt2);font-size:.83em;">目前授權名單為空（管理員帳號除外）</p>';
-    return;
-  }
-  listEl.innerHTML = ('\n<table style="width:100%;border-collapse:collapse;font-size:.83em;">\n<thead><tr>\n<th style="text-align:left;padding:6px 10px;color:var(--gold2);border-bottom:1px solid rgba(197,163,79,.2);">電子郵件</th>\n<th style="padding:6px 10px;color:var(--gold2);border-bottom:1px solid rgba(197,163,79,.2);width:80px;">操作</th>\n</tr></thead>\n<tbody>\n'+(emails.map((em, i) => ('<tr style="animation:optIn .3s ease '+(i*0.05)+'s both">\n<td style="padding:7px 10px;color:var(--txt1);border-bottom:1px solid rgba(255,255,255,.05);">'+(em)+'</td>\n<td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,.05);">\n<button class="bto bsm bred" onclick="adminQuickRemove(\''+(em)+'\')">移除</button>\n</td></tr>')).join(''))+'\n</tbody></table>\n<p style="margin-top:8px;color:var(--txt2);font-size:.77em;">共 '+(emails.length)+' 個授權帳號（不含管理員）</p>');
+  if (!res || !res.ok) { listEl.innerHTML = '<span style="color:var(--red);font-size:.83em;">' + ((res&&res.msg)||'載入失敗') + '</span>'; return; }
+  const users = res.users || [];
+  const iAmSuper = currentIsSuper || res.meRole === 'SUPER_ADMIN';
+  const me = res.me || currentUserEmail;
+  if (!users.length) { listEl.innerHTML = '<p style="color:var(--txt2);font-size:.83em;">目前沒有使用者</p>'; return; }
+  const rows = users.map(function(u, i){
+    const rm = ROLE_META[u.role] || ROLE_META.VIEWER;
+    const isSelf = u.email === me;
+    const canOp = !u.isSuper && !isSelf && !(u.role === 'ADMIN' && !iAmSuper);
+    let ctrl;
+    if (!canOp) {
+      ctrl = '<span style="color:var(--txt3);font-size:.85em;">' + (isSelf ? '（您自己）' : '—') + '</span>';
+    } else {
+      const opts = (iAmSuper ? ['ADMIN','VIEWER','BLOCKED'] : ['VIEWER','BLOCKED'])
+        .map(function(r){ return '<option value="' + r + '"' + (u.role === r ? ' selected' : '') + '>' + ROLE_META[r].t + '</option>'; }).join('');
+      ctrl = '<select class="csel" style="font-size:.8em;padding:3px 6px;" onchange="adminSetRole(\'' + u.email + '\',this.value)">' + opts + '</select>' +
+             ' <button class="bto bsm bred" style="padding:3px 8px;" onclick="adminRemove(\'' + u.email + '\')">移除</button>';
+    }
+    const badge = '<span style="color:' + rm.c + ';font-weight:600;">' + (u.isSuper ? '👑 ' : '') + rm.t + '</span>' +
+      (u.isDefault ? ' <span style="color:var(--txt3);font-size:.82em;">(預設)</span>' : '') +
+      (isSelf ? ' <span style="color:var(--txt3);font-size:.82em;">(您)</span>' : '');
+    return '<tr style="animation:optIn .3s ease ' + (i*0.04) + 's both">' +
+      '<td style="padding:7px 10px;color:var(--txt1);border-bottom:1px solid rgba(255,255,255,.05);word-break:break-all;">' + u.email + '</td>' +
+      '<td style="padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.05);white-space:nowrap;">' + badge + '</td>' +
+      '<td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,.05);white-space:nowrap;">' + ctrl + '</td></tr>';
+  }).join('');
+  listEl.innerHTML =
+    '<table style="width:100%;border-collapse:collapse;font-size:.83em;">' +
+    '<thead><tr>' +
+    '<th style="text-align:left;padding:6px 10px;color:var(--gold2);border-bottom:1px solid rgba(197,163,79,.2);">電子郵件</th>' +
+    '<th style="text-align:left;padding:6px 10px;color:var(--gold2);border-bottom:1px solid rgba(197,163,79,.2);">角色</th>' +
+    '<th style="padding:6px 10px;color:var(--gold2);border-bottom:1px solid rgba(197,163,79,.2);width:150px;">操作</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table>' +
+    '<p style="margin-top:8px;color:var(--txt2);font-size:.77em;">共 ' + users.length + ' 位 · 👑超級管理員／管理員／觀看者／已封鎖' + (iAmSuper ? '' : '（您是管理員，僅能指派觀看者／封鎖）') + '</p>';
 }
+// 向後相容別名
+function renderAdminList(res){ renderUserList(res); }
 
 function adminAddEmail() {
   if (!currentIsAdmin) return;
   const input = document.getElementById('admin-add-email');
+  const roleSel = document.getElementById('admin-add-role');
   const msgEl = document.getElementById('admin-add-msg');
   const email = (input?.value || '').trim();
+  const role = (roleSel && roleSel.value) || 'VIEWER';
   if (!email) { if (msgEl) { msgEl.textContent = '請輸入電子郵件'; msgEl.style.color = 'var(--red)'; } return; }
-
-  if (msgEl) { msgEl.textContent = '新增中...'; msgEl.style.color = 'var(--txt2)'; }
-
-  const doAdd = (res) => {
+  if (msgEl) { msgEl.textContent = '處理中...'; msgEl.style.color = 'var(--txt2)'; }
+  const done = (res) => {
     if (!msgEl) return;
-    if (res.ok) {
-      msgEl.textContent = res.msg;
-      msgEl.style.color = 'var(--green)';
-      if (input) input.value = '';
-      renderAdminList({ ok: true, emails: res.emails });
-    } else {
-      msgEl.textContent = res.msg;
-      msgEl.style.color = 'var(--red)';
-    }
+    msgEl.textContent = res.msg || (res.ok ? '完成' : '失敗');
+    msgEl.style.color = res.ok ? 'var(--green)' : 'var(--red)';
+    if (res.ok) { if (input) input.value = ''; adminLoadList(); }
   };
-
   if (typeof google !== 'undefined' && google.script && google.script.run) {
-    google.script.run.withSuccessHandler(doAdd).withFailureHandler(e => { if (msgEl) { msgEl.textContent = '操作失敗：' + e; msgEl.style.color = 'var(--red)'; } }).addEmail(email);
+    google.script.run.withSuccessHandler(done).withFailureHandler(e => done({ ok:false, msg:'操作失敗：' + e })).setUserRole(email, role);
   } else {
-    doAdd({ ok: true, msg: '（本機測試模式）已新增：' + email, emails: [email] });
+    done({ ok:true, msg:'（本機測試模式）已設定 ' + email + ' → ' + role });
   }
+}
+
+function adminSetRole(email, role) {
+  if (!currentIsAdmin) return;
+  if (typeof google !== 'undefined' && google.script && google.script.run) {
+    google.script.run
+      .withSuccessHandler(r => { showToast(r.ok ? (r.msg || '已更新') : (r.msg || '失敗'), r.ok ? 'ok' : 'err'); adminLoadList(); })
+      .withFailureHandler(e => showToast('操作失敗：' + e, 'err'))
+      .setUserRole(email, role);
+  } else { showToast('（本機測試）' + email + ' → ' + role, 'ok'); }
+}
+
+function adminRemove(email) {
+  if (!currentIsAdmin) return;
+  showModal({ icon:'🗑️', title:'移除使用者', msg:'確定要移除 <strong style="color:var(--gold2)">' + email + '</strong>？（將回復為未授權）', confirm:'確認移除', cancel:'取消', onConfirm:() => {
+    if (typeof google !== 'undefined' && google.script && google.script.run) {
+      google.script.run
+        .withSuccessHandler(r => { showToast(r.ok ? (r.msg || '已移除') : (r.msg || '失敗'), r.ok ? 'ok' : 'err'); adminLoadList(); })
+        .withFailureHandler(e => showToast('操作失敗：' + e, 'err'))
+        .removeUser(email);
+    } else { showToast('（本機測試）已移除 ' + email, 'ok'); }
+  } });
 }
 
 function adminRemoveEmail() {
