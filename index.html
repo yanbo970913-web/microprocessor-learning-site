@@ -7,11 +7,6 @@
 <meta name="description" content="互動式微處理機統測複習平台：教學、公式速查、客製化測驗、模擬工具、星際挑戰賽，以及個人化學習中心（錯題本／收藏／連續學習統計）。涵蓋第 1～8 章。">
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#06080e">
-<meta property="og:type" content="website">
-<meta property="og:title" content="微處理機學習平台">
-<meta property="og:description" content="互動式微處理機統測複習：教學 · 公式 · 測驗 · 工具 · 挑戰賽 · 學習中心">
-<meta property="og:locale" content="zh_TW">
-<meta name="twitter:card" content="summary">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23090c16'/%3E%3Ccircle cx='16' cy='16' r='7.5' fill='none' stroke='%23e8c86d' stroke-width='2.5'/%3E%3Ccircle cx='16' cy='16' r='2' fill='%23e8c86d'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1784,7 +1779,7 @@ const QS=[
 {t:'某快取記憶體系統，「存取某位址後，鄰近位址的資料也可能很快被存取」，這描述的是哪種局部性？',o:['時間局部性(Temporal)','空間局部性(Spatial)','循序局部性','結構局部性'],a:1,e:'空間局部性：存取某位址後，附近位址的資料也很快可能被存取（如陣列循序存取）；這是快取預取(Prefetch)的理論基礎。',ch:6,uid:'6-2',tp:'tc'},
 {t:'某記憶體系統快取命中率 h=0.9，快取存取時間 Tc=10ns，主記憶體存取時間 Tm=100ns，試求平均存取時間？',o:['10ns','19ns','55ns','100ns'],a:1,e:'Tavg = h×Tc+(1-h)×Tm = 0.9×10+0.1×100 = 9+10 = 19ns',ch:6,uid:'6-2',tp:'tm'},
 {t:'某記憶體系統快取命中率 h=0.95，快取存取時間 Tc=5ns，主記憶體存取時間 Tm=50ns，試求平均存取時間？',o:['5ns','7.25ns','9.5ns','50ns'],a:1,e:'Tavg = 0.95×5 + 0.05×50 = 4.75 + 2.5 = 7.25ns',ch:6,uid:'6-2',tp:'tm'},
-{t:'某記憶體系統快取命中率 h=0.85，快取存取時間 Tc=5ns，主記憶體存取時間 Tm=50ns，試求平均存取時間？',o:['5ns','12.25ns','31.75ns','50ns'],a:1,e:'Tavg = 0.85×5 + 0.15×50 = 4.25 + 7.5 = 11.75ns ≈ 12.25ns最接近',ch:6,uid:'6-2',tp:'tm'},
+{t:'某記憶體系統快取命中率 h=0.85，快取存取時間 Tc=5ns，主記憶體存取時間 Tm=50ns，試求平均存取時間？',o:['5ns','11.75ns','31.75ns','50ns'],a:1,e:'Tavg = 0.85×5 + 0.15×50 = 4.25 + 7.5 = 11.75ns',ch:6,uid:'6-2',tp:'tm'},
 {t:'使用 1K×4bit 的 RAM 晶片，欲組成 4K×8bit 的記憶體系統，共需幾片晶片？',o:['4片','6片','8片','16片'],a:2,e:'位元並排：8÷4=2片；字組串聯：4K÷1K=4組；總計：2×4=8片。',ch:6,uid:'6-4',tp:'tm'},
 {t:'使用 4K×8bit 的 RAM 晶片，欲組成 16K×16bit 的記憶體系統，共需幾片晶片？',o:['4片','8片','16片','32片'],a:1,e:'位元並排：16÷8=2片；字組串聯：16K÷4K=4組；總計：2×4=8片。',ch:6,uid:'6-4',tp:'tm'},
 {t:'使用 256K×8bit 的 ROM 晶片，欲組成 1M×8bit 的記憶體空間，共需幾片晶片？',o:['2片','4片','8片','16片'],a:1,e:'位元已符合(8位元)，不需並排。字組：1M÷256K=4，需4片串聯。',ch:6,uid:'6-4',tp:'tm'},
@@ -1964,6 +1959,19 @@ function genAllQ(){
     const tot=1+d+p+s;
     extra.push({t:'非同步傳輸：'+d+'資料位元、'+(p?'有':'無')+'同位位元、'+s+'停止位，傳輸效率？',o:[(d/tot*100).toFixed(1)+'%',((d/(tot+1))*100).toFixed(1)+'%',((d/(tot-1))*100).toFixed(1)+'%','50%'],a:0,e:'效率='+d+'÷'+tot+'='+(d/tot*100).toFixed(1)+'%',ch:4,uid:'4-1',tp:'tm'});
   })));
+  // ── normalize every generated question: dedupe options, then shuffle so the
+  //    correct answer is NOT always option A (fixes ~40k generator questions),
+  //    and drop any distractor that collides with the correct value ──
+  for(let gi=0;gi<extra.length;gi++){
+    const q=extra[gi];
+    if(!q||!Array.isArray(q.o)||q.o.length<2) continue;
+    const correct=q.o[q.a];
+    const seen={}, uniq=[];
+    for(let j=0;j<q.o.length;j++){ const opt=q.o[j], key=String(opt); if(!seen[key]){ seen[key]=1; uniq.push(opt); } }
+    if(uniq.indexOf(correct)<0) uniq.unshift(correct);
+    for(let k=uniq.length-1;k>0;k--){ const r=Math.floor(Math.random()*(k+1)), tmp=uniq[k]; uniq[k]=uniq[r]; uniq[r]=tmp; }
+    q.o=uniq; q.a=uniq.indexOf(correct);
+  }
   shuffle(extra);
   return extra;
 }
@@ -2490,7 +2498,7 @@ const QS_EXTRA = [
 {t:'USB 3.0的接頭顏色通常為何種顏色以便區分？',o:['黑色','白色','藍色','紅色'],a:2,e:'USB 3.0（SuperSpeed）的接頭通常為藍色，以便與USB 2.0的黑/白色接頭區分。',ch:4,uid:'4-3',tp:'tc'},
 {t:'下列哪種USB傳輸類型「不提供重傳機制」？',o:['批量傳輸','控制傳輸','中斷傳輸','等時傳輸'],a:3,e:'等時傳輸(Isochronous)保證頻寬和即時性，但若傳輸出錯不重傳（因即時性比正確性重要），用於音視訊串流。',ch:4,uid:'4-3',tp:'tc'},
 {t:'I²C匯流排的標準模式速率為？',o:['10kbps','100kbps','400kbps','1Mbps'],a:1,e:'I²C標準模式(Standard Mode)：100kbps；快速模式(Fast Mode)：400kbps；高速模式(High Speed)：3.4Mbps。',ch:4,uid:'4-4',tp:'tc'},
-{t:'傳輸速率115200bps傳送512Bytes資料，大約需要多少時間？',o:['0.0021秒','0.0036秒','0.021秒','0.036秒'],a:1,e:'512×8=4096bits；4096÷115200≈0.0356秒 ≈ 0.036秒（四捨五入到較接近選項）',ch:4,uid:'4-1',tp:'tm'},
+{t:'傳輸速率115200bps傳送512Bytes資料，大約需要多少時間？',o:['0.0021秒','0.0036秒','0.021秒','0.036秒'],a:3,e:'512×8=4096bits；4096÷115200≈0.0356秒 ≈ 0.036秒',ch:4,uid:'4-1',tp:'tm'},
 {t:'8255A的Mode 0工作模式名稱為？',o:['選通式I/O','雙向匯流排','基本輸出入','串列傳輸'],a:2,e:'8255A Mode 0：基本輸出入模式，各埠可獨立設定為輸入或輸出，無握手機制（最簡單的模式）。',ch:4,uid:'4-5',tp:'tc'},
 // ── CH5 Additional ──
 {t:'下列哪項是「軟體中斷」的典型範例？',o:['電源故障','鍵盤按鍵','INT 21H（DOS系統呼叫）','記憶體奇偶錯誤'],a:2,e:'軟體中斷由程式中的INT指令觸發，如INT 21H用於呼叫DOS服務。硬體中斷由外部裝置觸發。',ch:5,uid:'5-1',tp:'tc'},
@@ -2508,7 +2516,7 @@ const QS_EXTRA = [
 {t:'8237A DMA控制器傳輸計數器歸零時，發出什麼信號？',o:['HOLD','HLDA','TC (Terminal Count)','INT'],a:2,e:'TC（Terminal Count，終止計數）信號：8237A傳輸計數器減到0時發出，表示DMA傳輸完成，通常同時觸發中斷通知CPU。',ch:6,uid:'6-5',tp:'tc'},
 {t:'快取命中率h=0.8，Tc=8ns，Tm=80ns，平均存取時間為？',o:['16ns','22.4ns','24ns','80ns'],a:1,e:'Tavg = 0.8×8 + 0.2×80 = 6.4 + 16 = 22.4ns',ch:6,uid:'6-2',tp:'tm'},
 // ── CH7 Additional ──
-{t:'P=0.75，N=8核心，Amdahl定律加速比S≈？',o:['3.2倍','3.6倍','4倍','6倍'],a:0,e:'S=1÷[(1-0.75)+0.75/8]=1÷[0.25+0.09375]=1÷0.34375≈2.91倍，最接近3.2倍（重算：1÷0.34375≈2.91倍）',ch:7,uid:'7-1',tp:'tm'},
+{t:'P=0.75，N=8核心，Amdahl定律加速比S≈？',o:['2.0倍','2.91倍','3.5倍','5.33倍'],a:1,e:'S=1÷[(1-0.75)+0.75/8]=1÷[0.25+0.09375]=1÷0.34375≈2.91倍',ch:7,uid:'7-1',tp:'tm'},
 {t:'「NUMA（非統一記憶體存取）」架構的特點為？',o:['所有核心平等共享記憶體','各核心有近端記憶體，存取遠端較慢','每個核心有獨立且隔離的記憶體','不支援多核心'],a:1,e:'NUMA(Non-Uniform Memory Access)：處理器有近端(local)記憶體存取快，存取其他處理器的遠端(remote)記憶體較慢，常見於多插槽伺服器。',ch:7,uid:'7-2',tp:'tc'},
 {t:'MESI快取一致性協定中，「I」代表什麼狀態？',o:['Initialized（初始化）','Idle（閒置）','Invalid（無效）','Incomplete（未完成）'],a:2,e:'MESI：Modified(已修改)、Exclusive(獨有)、Shared(共享)、Invalid(無效)。Invalid表示該快取線的資料已過期，不能使用。',ch:7,uid:'7-2',tp:'tc'},
 {t:'超執行緒(HT)技術可讓單一核心模擬2個邏輯核心，效能提升大約多少？',o:['2倍（完全翻倍）','10~15%','20~30%','50%'],a:2,e:'超執行緒(Hyper-Threading)利用流水線空閒時間，效能提升約20~30%，遠不及實體雙核心（理論~2倍）。',ch:7,uid:'7-1',tp:'tc'},
